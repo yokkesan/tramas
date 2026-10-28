@@ -1,10 +1,40 @@
-# tramas mobile
+# Mobile
 
-Flutter iOS / Androidアプリです。初期画面とAPI接続確認のみ実装しています。
+## Technology Stack
 
-SDK・実行方法・環境別API設定は [プロジェクトREADME](../README.md#flutter) を参照してください。
+| Component | Technology |
+|---|---|
+| Framework | Flutter 3.44.8 |
+| Language | Dart 3.12.2 |
+| Platforms | iOS / Android |
+| API Client | Dart `HttpClient` |
+| Configuration | Dart compile-time environment variables |
 
-- Flutter: 3.44.8（`.fvmrc`）
-- 依存バージョン: `pubspec.lock`
-- 接続先: `config/dev-ios.json` / `config/dev-android.json`
-- 正式アプリ識別子・署名・本番接続先: 未確定
+## Configuration
+
+| File | Purpose |
+|---|---|
+| `.fvmrc` | Flutter SDK version |
+| `pubspec.yaml` / `pubspec.lock` | Dependencies and locked versions |
+| `config/dev-ios.json` | Local API endpoint for iOS Simulator |
+| `config/dev-android.json` | Local API endpoint for Android Emulator |
+| `config/production.example.json` | Production API configuration template |
+| `lib/config/app_config.dart` | Environment and API URL validation |
+
+## Directory Structure
+
+```text
+.
+├── android/
+├── ios/
+├── lib/
+│   ├── api/
+│   ├── config/
+│   └── main.dart
+├── config/
+├── test/
+├── .fvmrc
+├── analysis_options.yaml
+├── pubspec.yaml
+└── pubspec.lock
+```
