@@ -1,0 +1,84 @@
+{
+  "health": {
+    "database": "ok",
+    "status": "ok"
+  },
+  "admin_http": "200; templ HTML, htmx asset, DB status HTML confirmed; browser unverified",
+  "public_tables": 0,
+  "app_role": "non-superuser, no createdb, no createrole",
+  "persistence": "database comment persisted across PostgreSQL container replacement; marker removed",
+  "db_outage": "API returns 503 when PostgreSQL is stopped",
+  "db_recovery": "all four services healthy after PostgreSQL restart",
+  "services": {
+    "api": {
+      "uid": "10001",
+      "health": "healthy",
+      "restart_count": 0,
+      "memory_limit_bytes": 268435456,
+      "cpu_limit": 0.5,
+      "ports": {},
+      "logging": {
+        "Type": "json-file",
+        "Config": {
+          "max-file": "3",
+          "max-size": "10m"
+        }
+      }
+    },
+    "worker": {
+      "uid": "10001",
+      "health": "healthy",
+      "restart_count": 0,
+      "memory_limit_bytes": 268435456,
+      "cpu_limit": 0.5,
+      "ports": {},
+      "logging": {
+        "Type": "json-file",
+        "Config": {
+          "max-file": "3",
+          "max-size": "10m"
+        }
+      }
+    },
+    "postgres": {
+      "uid": "70",
+      "health": "healthy",
+      "restart_count": 0,
+      "memory_limit_bytes": 536870912,
+      "cpu_limit": 1.0,
+      "ports": {},
+      "logging": {
+        "Type": "json-file",
+        "Config": {
+          "max-file": "3",
+          "max-size": "10m"
+        }
+      }
+    },
+    "caddy": {
+      "uid": "1000",
+      "health": "healthy",
+      "restart_count": 0,
+      "memory_limit_bytes": 134217728,
+      "cpu_limit": 0.5,
+      "ports": {
+        "8080/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "8080"
+          }
+        ]
+      },
+      "logging": {
+        "Type": "json-file",
+        "Config": {
+          "max-file": "3",
+          "max-size": "10m"
+        }
+      }
+    }
+  },
+  "postgres_version": "17.11",
+  "caddy_version": "v2.11.7 h1:yj0Y4fYZGPkSvibBJ1sTWE33xC0fxztVyXEW5iIdUT4=",
+  "stats": "tramas-dev-postgres-1\t0.04%\t21.13MiB / 512MiB\ntramas-dev-caddy-1\t0.02%\t13.55MiB / 128MiB\ntramas-dev-api-1\t0.00%\t7.281MiB / 256MiB\ntramas-dev-worker-1\t0.00%\t5.23MiB / 256MiB"
+}

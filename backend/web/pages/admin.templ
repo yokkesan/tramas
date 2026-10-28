@@ -1,0 +1,31 @@
+package pages
+
+templ Admin() {
+	<!DOCTYPE html>
+	<html lang="ja">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false,"selfRequestsOnly":true}'/>
+			<title>tramas 管理画面</title>
+			<link rel="stylesheet" href="/static/admin.css"/>
+			<script src="/static/htmx-2.0.8.min.js" defer></script>
+		</head>
+		<body>
+			<main>
+				<h1>tramas</h1>
+				<p>管理画面の開発用確認ページです。</p>
+				<button hx-get="/admin/status" hx-target="#status" type="button">DB接続を確認</button>
+				<div id="status" role="status" aria-live="polite">未確認</div>
+			</main>
+		</body>
+	</html>
+}
+
+templ Status(healthy bool) {
+	if healthy {
+		<p>PostgreSQLに接続できました。</p>
+	} else {
+		<p>PostgreSQLに接続できません。</p>
+	}
+}

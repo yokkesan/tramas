@@ -1,0 +1,125 @@
+name: ${COMPOSE_PROJECT_NAME:-tramas}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-app: &app
+  init: true
+  restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:size=16m,mode=1777"]
+  networks: [database]
+  environment: &app-env
+    APP_ENV: production
+    # Passwords must be URL-safe (setup-dev-env.py generates hex passwords).
+    DATABASE_URL: postgres://${APP_DB_USER:?required}:${APP_DB_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:?required}?sslmode=disable
+  depends_on:
+    postgres:
+      condition: service_healthy
+  logging: *logging
+  cpus: 0.50
+  mem_limit: 256m
+  pids_limit: 128
+  stop_grace_period: 15s
+
+services:
+  api:
+    <<: *app
+    build:
+      context: .
+      dockerfile: infra/docker/api/Dockerfile
+    networks: [database, edge]
+    healthcheck:
+      test: [CMD, /app/api, healthcheck]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  worker:
+    <<: *app
+    build:
+      context: .
+      dockerfile: infra/docker/worker/Dockerfile
+    healthcheck:
+      test: [CMD, /app/worker, healthcheck]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  postgres:
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    user: postgres
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?required}
+      POSTGRES_USER: ${POSTGRES_USER:?required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      APP_DB_USER: ${APP_DB_USER:?required}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/docker/postgres/01-app-user.sql:/docker-entrypoint-initdb.d/01-app-user.sql:ro
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+    logging: *logging
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 256
+
+  caddy:
+    build:
+      context: .
+      dockerfile: infra/docker/caddy/Dockerfile
+    user: "1000:1000"
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      XDG_DATA_HOME: /data
+      XDG_CONFIG_HOME: /config
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infra/caddy/routes.caddy:/etc/caddy/routes.caddy:ro
+      # Mount parent directories so Caddy can create owned subdirectories as non-root.
+      - caddy_data:/data
+      - caddy_config:/config
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    networks: [edge]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:9090/health]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    logging: *logging
+    cpus: 0.50
+    mem_limit: 128m
+    pids_limit: 128
+
+networks:
+  database:
+    internal: true
+  edge:
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

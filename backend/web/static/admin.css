@@ -1,0 +1,6 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; background: #f5f5f4; color: #202020; }
+body { margin: 0; }
+main { max-width: 40rem; margin: 4rem auto; padding: 2rem; background: white; border-top: .4rem solid #e6b800; }
+button { padding: .7rem 1rem; border: 1px solid #333; border-radius: .3rem; background: #ffdd45; color: #202020; font: inherit; cursor: pointer; }
+button:focus-visible { outline: .2rem solid #275db2; outline-offset: .2rem; }
+#status { margin-top: 1rem; }

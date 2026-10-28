@@ -1,0 +1,14 @@
+{
+	admin off
+	http_port 8080
+	https_port 8443
+}
+
+{$SITE_ADDRESS} {
+	import /etc/caddy/routes.caddy
+}
+
+# Internal liveness endpoint, never published to the host.
+http://:9090 {
+	respond /health "ok" 200
+}

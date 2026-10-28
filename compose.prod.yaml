@@ -1,0 +1,16 @@
+# Use a separate, explicitly supplied production env-file and project name.
+# No production deployment is performed by this repository setup.
+name: tramas-prod
+services:
+  api:
+    environment:
+      APP_ENV: production
+  worker:
+    environment:
+      APP_ENV: production
+  caddy:
+    environment:
+      SITE_ADDRESS: https://${TRAMAS_DOMAIN:?production domain required}
+    ports:
+      - "80:8080"
+      - "443:8443"

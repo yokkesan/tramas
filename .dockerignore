@@ -1,0 +1,11 @@
+.git
+.env*
+mobile
+docs
+.local
+**/build
+**/.dart_tool
+**/.idea
+**/*.log
+**/*.key
+**/*.pem

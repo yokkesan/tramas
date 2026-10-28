@@ -1,0 +1,12 @@
+services:
+  api:
+    environment:
+      APP_ENV: development
+  worker:
+    environment:
+      APP_ENV: development
+  caddy:
+    environment:
+      SITE_ADDRESS: http://:8080
+    ports:
+      - "127.0.0.1:${DEV_HTTP_PORT:-8080}:8080"
