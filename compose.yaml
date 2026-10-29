@@ -33,7 +33,20 @@ services:
     build:
       context: .
       dockerfile: infra/docker/api/Dockerfile
-    networks: [database, edge]
+    networks: [database, proxy]
+    environment:
+      <<: *app-env
+      TRUSTED_PROXY_CIDRS: ${TRAMAS_PROXY_IP:-10.93.17.2}/32
+      REGISTER_PASSWORD_MIN: ${REGISTER_PASSWORD_MIN:-15}
+      REGISTER_PASSWORD_MAX: ${REGISTER_PASSWORD_MAX:-128}
+      REGISTER_HASH_CONCURRENCY: ${REGISTER_HASH_CONCURRENCY:-2}
+      REGISTER_ARGON_MEMORY_KIB: ${REGISTER_ARGON_MEMORY_KIB:-19456}
+      REGISTER_ARGON_ITERATIONS: ${REGISTER_ARGON_ITERATIONS:-2}
+      REGISTER_ARGON_PARALLELISM: ${REGISTER_ARGON_PARALLELISM:-1}
+      REGISTER_RATE_PER_MINUTE: ${REGISTER_RATE_PER_MINUTE:-5}
+      REGISTER_RATE_BURST: ${REGISTER_RATE_BURST:-2}
+      REGISTER_RATE_MAX_CLIENTS: ${REGISTER_RATE_MAX_CLIENTS:-10000}
+      REGISTER_BLOCKLIST_PATH: ${REGISTER_BLOCKLIST_PATH:-}
     healthcheck:
       test: [CMD, /app/api, healthcheck]
       interval: 10s
@@ -65,9 +78,12 @@ services:
       POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
       APP_DB_USER: ${APP_DB_USER:?required}
       APP_DB_PASSWORD: ${APP_DB_PASSWORD:?required}
+      MIGRATION_DB_USER: ${MIGRATION_DB_USER:?required}
+      MIGRATION_DB_PASSWORD: ${MIGRATION_DB_PASSWORD:?required}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/docker/postgres/01-app-user.sql:/docker-entrypoint-initdb.d/01-app-user.sql:ro
+      - ./infra/docker/postgres/02-migrator.sql:/docker-entrypoint-initdb.d/02-migrator.sql:ro
     networks: [database]
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
@@ -99,7 +115,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     tmpfs: ["/tmp:size=16m,mode=1777"]
-    networks: [edge]
+    networks:
+      edge:
+      proxy:
+        ipv4_address: ${TRAMAS_PROXY_IP:-10.93.17.2}
     depends_on:
       api:
         condition: service_healthy
@@ -115,6 +134,12 @@ services:
     pids_limit: 128
 
 networks:
+  proxy:
+    internal: true
+    ipam:
+      config:
+        - subnet: ${TRAMAS_PROXY_SUBNET:-10.93.17.0/24}
+          ip_range: ${TRAMAS_PROXY_DYNAMIC_RANGE:-10.93.17.128/25}
   database:
     internal: true
   edge:

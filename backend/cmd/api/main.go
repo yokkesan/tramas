@@ -14,7 +14,9 @@ import (
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
 	"tramas/backend/internal/admin"
+	"tramas/backend/internal/auth"
 	"tramas/backend/internal/platform"
+	"tramas/backend/internal/users"
 	"tramas/backend/web"
 )
 
@@ -45,9 +47,29 @@ func run() error {
 		return errors.New("database connection failed")
 	}
 	defer pool.Close()
+	registration, err := auth.LoadConfig()
+	if err != nil {
+		return err
+	}
 	e := echo.New()
-	e.Use(middleware.Recover(), middleware.RequestID(), middleware.RequestLogger())
-	e.Use(middleware.BodyLimit(1 << 20))
+	if len(registration.TrustedProxies) > 0 {
+		options := []echo.TrustOption{echo.TrustLoopback(false), echo.TrustLinkLocal(false), echo.TrustPrivateNet(false)}
+		for _, network := range registration.TrustedProxies {
+			options = append(options, echo.TrustIPRange(network))
+		}
+		e.IPExtractor = echo.ExtractIPFromXFFHeader(options...)
+	}
+	e.Use(middleware.Recover(), middleware.RequestID(), middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus: true, LogMethod: true, LogRoutePath: true, LogLatency: true, HandleError: true,
+		LogValuesFunc: func(c *echo.Context, v middleware.RequestLoggerValues) error {
+			// Log a route template, never query strings, bodies, headers or raw errors.
+			slog.Info("request", "method", v.Method, "route", v.RoutePath, "status", v.Status, "latency", v.Latency)
+			return nil
+		},
+	}))
+	e.Use(middleware.BodyLimitWithConfig(middleware.BodyLimitConfig{LimitBytes: 1 << 20,
+		Skipper: func(c *echo.Context) bool { return c.Request().URL.Path == "/api/v1/auth/register" },
+	}))
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
 			h := c.Response().Header()
@@ -59,6 +81,9 @@ func run() error {
 			return next(c)
 		}
 	})
+	if err = auth.Register(e, users.PostgresRepository{Pool: pool}, registration); err != nil {
+		return errors.New("registration configuration failed")
+	}
 	e.GET("/health", func(c *echo.Context) error {
 		if platform.Ping(c.Request().Context(), pool) != nil {
 			return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})

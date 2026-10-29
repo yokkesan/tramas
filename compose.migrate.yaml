@@ -1,0 +1,18 @@
+services:
+  migrate:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: infra/docker/migrate/Dockerfile
+    environment:
+      MIGRATION_DATABASE_URL: postgres://${MIGRATION_DB_USER:?required}:${MIGRATION_DB_PASSWORD:?required}@postgres:5432/${POSTGRES_DB:?required}?sslmode=disable
+      MIGRATION_EXPECTED_DB: ${POSTGRES_DB:?required}
+      APP_DB_USER: ${APP_DB_USER:?required}
+    networks: [database]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: [up]

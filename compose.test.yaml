@@ -1,0 +1,53 @@
+# Standalone: never merge with the development or production Compose files.
+name: tramas-test
+services:
+  postgres_test:
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    user: postgres
+    environment:
+      POSTGRES_DB: tramas_test
+      POSTGRES_USER: tramas_testowner
+      POSTGRES_PASSWORD: ${TEST_OWNER_PASSWORD:?required}
+      APP_DB_USER: tramas_testapp
+      APP_DB_PASSWORD: ${TEST_APP_PASSWORD:?required}
+      MIGRATION_DB_USER: tramas_testmigrator
+      MIGRATION_DB_PASSWORD: ${TEST_MIGRATOR_PASSWORD:?required}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    tmpfs:
+      - /var/lib/postgresql/data:uid=70,gid=70,mode=0700
+    volumes:
+      - ./infra/docker/postgres/01-app-user.sql:/docker-entrypoint-initdb.d/01-app-user.sql:ro
+      - ./infra/docker/postgres/02-migrator.sql:/docker-entrypoint-initdb.d/02-migrator.sql:ro
+    networks: [test]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, tramas_testowner, -d, tramas_test]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "2"}
+  test:
+    build:
+      context: .
+      dockerfile: infra/docker/test/Dockerfile
+    environment:
+      TEST_DB_NAME: tramas_test
+      TEST_DATABASE_URL: postgres://tramas_testapp:${TEST_APP_PASSWORD:?required}@postgres_test:5432/tramas_test?sslmode=disable
+      TEST_MIGRATION_DATABASE_URL: postgres://tramas_testmigrator:${TEST_MIGRATOR_PASSWORD:?required}@postgres_test:5432/tramas_test?sslmode=disable
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+    networks: [test]
+    read_only: true
+    # Go executes temporary test binaries from this directory.
+    tmpfs: ["/tmp:size=1536m,mode=1777,exec"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 2g
+networks:
+  test:
+    internal: true
