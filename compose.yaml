@@ -30,6 +30,8 @@ x-app: &app
 services:
   api:
     <<: *app
+    mem_limit: 512m
+    tmpfs: ["/tmp:size=128m,mode=1777"]
     build:
       context: .
       dockerfile: infra/docker/api/Dockerfile
@@ -47,6 +49,13 @@ services:
       REGISTER_RATE_BURST: ${REGISTER_RATE_BURST:-2}
       REGISTER_RATE_MAX_CLIENTS: ${REGISTER_RATE_MAX_CLIENTS:-10000}
       REGISTER_BLOCKLIST_PATH: ${REGISTER_BLOCKLIST_PATH:-}
+      # Development-only local inbox; never configure this in production.
+      AUTH_DEV_MAILBOX_KEY: ${AUTH_DEV_MAILBOX_KEY:-}
+      OIDC_APPLE_CLIENT_IDS: ${OIDC_APPLE_CLIENT_IDS:-}
+      OIDC_GOOGLE_CLIENT_IDS: ${OIDC_GOOGLE_CLIENT_IDS:-}
+      PROFILE_STANDARD_IMAGES: ${PROFILE_STANDARD_IMAGES:-[]}
+      PROFILE_DECODE_BUDGET_BYTES: ${PROFILE_DECODE_BUDGET_BYTES:-67108864}
+      PASSWORD_RESET_TOKEN_TTL: ${PASSWORD_RESET_TOKEN_TTL:-30m}
     healthcheck:
       test: [CMD, /app/api, healthcheck]
       interval: 10s

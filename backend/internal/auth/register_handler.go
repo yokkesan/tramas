@@ -38,14 +38,19 @@ type Handler struct {
 }
 
 func Register(e *echo.Echo, repository users.Repository, c Config) error {
+	hasher, err := NewArgonHasher(c)
+	if err != nil {
+		return err
+	}
+	return RegisterWithHasher(e, repository, c, hasher)
+}
+
+// RegisterWithHasher allows registration and login to share the Argon2 capacity.
+func RegisterWithHasher(e *echo.Echo, repository users.Repository, c Config, hasher *ArgonHasher) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
 	policy, err := NewPolicy(c)
-	if err != nil {
-		return err
-	}
-	hasher, err := NewArgonHasher(c)
 	if err != nil {
 		return err
 	}

@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,7 +18,9 @@ import (
 	"github.com/labstack/echo/v5/middleware"
 	"tramas/backend/internal/admin"
 	"tramas/backend/internal/auth"
+	"tramas/backend/internal/favorites"
 	"tramas/backend/internal/platform"
+	"tramas/backend/internal/profile"
 	"tramas/backend/internal/users"
 	"tramas/backend/web"
 )
@@ -68,7 +73,9 @@ func run() error {
 		},
 	}))
 	e.Use(middleware.BodyLimitWithConfig(middleware.BodyLimitConfig{LimitBytes: 1 << 20,
-		Skipper: func(c *echo.Context) bool { return c.Request().URL.Path == "/api/v1/auth/register" },
+		Skipper: func(c *echo.Context) bool {
+			return c.Request().URL.Path == "/api/v1/auth/register" || c.Request().Method == "PUT" && strings.HasPrefix(c.Request().URL.Path, "/api/v1/users/me/profile/images/")
+		},
 	}))
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
@@ -81,9 +88,102 @@ func run() error {
 			return next(c)
 		}
 	})
-	if err = auth.Register(e, users.PostgresRepository{Pool: pool}, registration); err != nil {
+	hasher, err := auth.NewArgonHasher(registration)
+	if err != nil {
+		return errors.New("authentication configuration failed")
+	}
+	if err = auth.RegisterWithHasher(e, users.PostgresRepository{Pool: pool}, registration, hasher); err != nil {
 		return errors.New("registration configuration failed")
 	}
+	authRepository := auth.PostgresAuthRepository{Pool: pool}
+	if raw := os.Getenv("PASSWORD_RESET_TOKEN_TTL"); raw != "" {
+		ttl, err := time.ParseDuration(raw)
+		if err != nil || ttl < time.Minute || ttl > 24*time.Hour {
+			return errors.New("invalid PASSWORD_RESET_TOKEN_TTL")
+		}
+		authRepository.ResetTTL = ttl
+	}
+	sessions, err := auth.NewSessionService(authRepository, hasher)
+	if err != nil {
+		return errors.New("authentication initialization failed")
+	}
+	authHandler := auth.RegisterAuthentication(e, sessions, registration)
+	policy, err := auth.NewPolicy(registration)
+	if err != nil {
+		return errors.New("password policy configuration failed")
+	}
+	auth.RegisterReset(e, authHandler, auth.ResetService{Repository: authRepository, Sessions: sessions, Policy: policy})
+	auth.RegisterExternal(e, authHandler, auth.ExternalService{Repository: authRepository, Sessions: sessions, Verifier: auth.NewOIDCVerifier(ctx, os.Getenv("OIDC_APPLE_CLIENT_IDS"), os.Getenv("OIDC_GOOGLE_CLIENT_IDS"))})
+	var imageStorage profile.Storage
+	if root := os.Getenv("PROFILE_STORAGE_ROOT"); root != "" {
+		if cfg.Environment != "development" {
+			return errors.New("local profile storage is development only")
+		}
+		files, err := profile.NewFileStorage(root)
+		if err != nil {
+			return errors.New("local profile storage unavailable")
+		}
+		defer files.Close()
+		imageStorage = files
+	}
+	standards := []profile.StandardImage{}
+	if raw := os.Getenv("PROFILE_STANDARD_IMAGES"); raw != "" {
+		if err = json.Unmarshal([]byte(raw), &standards); err != nil {
+			return errors.New("invalid PROFILE_STANDARD_IMAGES")
+		}
+	}
+	for _, v := range standards {
+		if v.ID == "" || v.Kind != "avatar" && v.Kind != "header" || !strings.HasPrefix(v.URL, "https://") && !strings.HasPrefix(v.URL, "/") {
+			return errors.New("invalid standard image configuration")
+		}
+	}
+	decodeBudget := int64(64 << 20)
+	if raw := os.Getenv("PROFILE_DECODE_BUDGET_BYTES"); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value < 1<<20 || value > 256<<20 {
+			return errors.New("invalid PROFILE_DECODE_BUDGET_BYTES")
+		}
+		decodeBudget = value
+	}
+	profileService := profile.Service{Repository: profile.PostgresRepository{Pool: pool}, Storage: imageStorage, Validator: profile.NewImageValidator(profile.CommandHEICValidator{}, decodeBudget), Standards: standards}
+	profile.Register(e, authHandler, profileService)
+	favorites.Register(e, authHandler, favorites.Service{Repository: favorites.PostgresRepository{Pool: pool}})
+	var sender auth.VerificationSender
+	if cfg.Environment == "development" {
+		mailbox := &auth.MemoryMailbox{Capacity: 100}
+		sender = mailbox
+		if key := os.Getenv("AUTH_DEV_MAILBOX_KEY"); key != "" {
+			if len(key) < 32 {
+				return errors.New("AUTH_DEV_MAILBOX_KEY must contain at least 32 bytes")
+			}
+			auth.RegisterLocalMailbox(e, mailbox, key)
+		}
+	} else {
+		if os.Getenv("AUTH_DEV_MAILBOX_KEY") != "" {
+			return errors.New("local mailbox is forbidden in production")
+		}
+		slog.Warn("verification mail delivery is not configured", "category", "configuration")
+	}
+	backgroundDone := make(chan struct{})
+	go func() { defer close(backgroundDone); authRepository.RunBackground(ctx, sender) }()
+	defer func() { cancel(); <-backgroundDone }()
+	cleanupDone := make(chan struct{})
+	go func() {
+		defer close(cleanupDone)
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				work, stop := context.WithTimeout(ctx, 5*time.Second)
+				profileService.Cleanup(work, "")
+				stop()
+			}
+		}
+	}()
+	defer func() { cancel(); <-cleanupDone }()
 	e.GET("/health", func(c *echo.Context) error {
 		if platform.Ping(c.Request().Context(), pool) != nil {
 			return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})

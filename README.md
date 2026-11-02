@@ -76,3 +76,5 @@
 ├── compose.prod.yaml
 └── .env.example
 ```
+
+fvm flutter run --dart-define-from-file=config/dev-ios.json
