@@ -1,4 +1,4 @@
-# Registration Schema and Migrations
+# Authentication Schema and Migrations
 
 SQL migrations use goose 3.29.0, embedded in `backend/cmd/migrate`.
 The command accepts only `up`. No destructive Down migration is included.
@@ -22,17 +22,35 @@ The email uniqueness constraint is named `users_email_key`. Only this specific
 unique violation maps to the API's duplicate-email error. One parameterized
 `INSERT ... RETURNING` is atomic; competing requests are resolved by the database.
 
-No nickname or administrator-role columns are created. The registration service
+Migration 00001 creates no nickname or administrator-role columns. The registration service
 always hashes the password. The nullable hash leaves room for future accounts
 without a password credential; no external-authentication route exists yet.
 Email verification is never granted by this registration path.
+
+Migration `00002_authentication.sql` adds nickname/profile_completed_at, with a
+2–20-code-point length and completion-consistency constraint. It adds three tables:
+
+- `auth_email_verifications`: per-user token hash/expiry/consumption plus durable mail job state.
+- `auth_sessions`: current access/refresh hashes, previous refresh and request hashes for safe retries, deadlines and revocation.
+- `auth_rate_limits`: hashed purpose/identifier keys and expiring atomic counters.
+
+Existing unverified users receive a pending mail job; IDs/passwords are preserved.
+The app role gains password_hash/nickname/profile_completed_at SELECT, column-level
+UPDATE for email_verified_at/nickname/profile_completed_at/updated_at, and DML on
+the three auth tables. It still cannot update IDs/password_hash, delete users, run
+DDL or read migration history. No administrator columns are introduced.
+See [authentication API](../api/authentication.md) for lifetimes and retry behavior.
+
+Migrations 00003–00005 add external identities and password recovery, profiles and
+owned media, and players/favorite history. Details and privilege boundaries are in
+[backend features](../api/backend-features.md). No fictional player rows are seeded.
 
 ## Roles
 
 - Database owner: initial role provisioning only.
 - Migration role: non-superuser, no database/role creation privileges; schema USAGE
   and CREATE. It owns the users table and goose history it creates.
-- Application role: schema USAGE; INSERT only on `email,password_hash`; SELECT only
+- Application role at migration 00001: schema USAGE; INSERT only on `email,password_hash`; SELECT only
   on `id,email,created_at,updated_at,email_verified_at`. No ID assignment, verification
   timestamp assignment, hash reads, UPDATE, DELETE, DDL or migration-history access.
 
@@ -115,4 +133,4 @@ success/duplicate/error responses, DB permissions, concurrent inserts/HTTP calls
 unverified email state, stable UUIDs and migration re-execution.
 
 No production database was accessed. Production credentials, backup/recovery,
-email verification and deployment procedures are not configured by these commands.
+production mail delivery and deployment procedures are not configured by these commands.

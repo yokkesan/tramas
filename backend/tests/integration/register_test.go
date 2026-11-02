@@ -125,7 +125,7 @@ func TestRegistrationPostgres(t *testing.T) {
 		`INSERT INTO users (id,email,password_hash) VALUES(gen_random_uuid(),'forbidden@example.com','$argon2id$test')`,
 		`INSERT INTO users (email,password_hash,email_verified_at) VALUES('forbidden@example.com','$argon2id$test',now())`,
 		`UPDATE users SET id=gen_random_uuid()`, `DELETE FROM users`,
-		`SELECT password_hash FROM users`, `SELECT * FROM goose_db_version`,
+		`UPDATE users SET password_hash='$argon2id$forbidden'`, `SELECT * FROM goose_db_version`,
 		`CREATE TABLE forbidden(id int)`,
 	} {
 		_, err := app.Exec(ctx, statement)

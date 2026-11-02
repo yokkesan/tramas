@@ -138,8 +138,11 @@ above. No authorization header is required or returned. A 201 result means the
 account was created; it does not mean the user is authenticated or email-verified.
 Physical-device access is not configured because the local port is loopback-only.
 
-Email verification/delivery, login, sessions, access/refresh tokens, password reset,
-Apple/Google authentication and account linking are outside this implementation.
+Registration now atomically enqueues an email-verification delivery request without
+changing this response. See [General User Authentication](authentication.md) for
+verification, local test mail delivery, login, sessions and profile setup.
+Password reset, production mail delivery, Apple/Google authentication and account
+linking remain deferred.
 
 ## Implementation Files
 
