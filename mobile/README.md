@@ -8,6 +8,8 @@
 | Language | Dart 3.12.2 |
 | Platforms | iOS / Android |
 | API Client | Dart `HttpClient` |
+| Secure Session Storage | Platform Keychain / encrypted Android storage |
+| Identity | Sign in with Apple, AppAuth (iOS Google), Credential Manager (Android Google) |
 | Configuration | Dart compile-time environment variables |
 
 ## Configuration
@@ -29,7 +31,13 @@
 ├── ios/
 ├── lib/
 │   ├── api/
+│   ├── app/
 │   ├── config/
+│   ├── core/
+│   ├── features/
+│   │   ├── auth/
+│   │   ├── favorites/
+│   │   └── profile/
 │   └── main.dart
 ├── config/
 ├── test/
@@ -38,3 +46,5 @@
 ├── pubspec.yaml
 └── pubspec.lock
 ```
+
+See [authentication and profile integration](docs/auth-profile-integration.md) for API coverage, provider configuration, verification results, and simulator checks.

@@ -1,20 +1,32 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tramas/config/app_config.dart';
 import 'package:tramas/main.dart';
+import 'support/fakes.dart';
 
 void main() {
   testWidgets('初期画面を表示する', (tester) async {
+    final session = controller(
+      FakeTransport(
+        (_) => throw StateError('signed-out startup must not call API'),
+      ),
+      MemoryVault(),
+    );
+    addTearDown(session.dispose);
     await tester.pumpWidget(
       TramasApp(
+        session: session,
+        identitySdk: FakeIdentitySdk(),
         config: AppConfig.fromValues(
           environment: 'development',
           baseUrl: 'http://127.0.0.1:8080',
         ),
       ),
     );
-    expect(find.text('tramas'), findsOneWidget);
-    expect(find.text('接続を確認'), findsOneWidget);
-    expect(find.text('未確認'), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text('tramas.'), findsOneWidget);
+    expect(find.text('ログイン'), findsNWidgets(3));
+    expect(find.text('新規登録へ'), findsOneWidget);
+    expect(find.textContaining('設定待ち'), findsOneWidget);
   });
 
   test('release requires a production HTTPS URL', () {

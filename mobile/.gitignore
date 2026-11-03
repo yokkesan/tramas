@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Feature repositories are source code, not runtime data directories.
+!lib/features/**/data/
+!lib/features/**/data/*.dart

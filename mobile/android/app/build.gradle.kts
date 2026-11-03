@@ -23,6 +23,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Supply the registered provider callback scheme when enabling OIDC.
+        manifestPlaceholders["appAuthRedirectScheme"] = providers.gradleProperty("appAuthRedirectScheme").orElse("tramas-unconfigured").get()
     }
 
     buildTypes {
@@ -42,4 +44,10 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../services/register_service.dart';
+import '../../../app/app_scope.dart';
+import '../../../core/network/error_messages.dart';
+import 'verification_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, required this.apiBaseUrl});
@@ -16,8 +18,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordConfirmController = TextEditingController();
-
-  final _registerService = RegisterService();
 
   bool _isLoading = false;
   String? _message;
@@ -57,33 +57,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final statusCode = await _registerService.register(
-        apiBaseUrl: widget.apiBaseUrl,
-        email: email,
-        password: password,
+      await AppScope.of(context).session.repository.register(email, password);
+
+      if (!mounted) return;
+
+      _passwordController.clear();
+      _passwordConfirmController.clear();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => VerificationScreen(email: email),
+        ),
       );
-
+    } catch (error) {
       if (!mounted) return;
 
       setState(() {
-        switch (statusCode) {
-          case 201:
-            _message = 'ユーザー登録が完了しました。';
-          case 409:
-            _message = 'このメールアドレスはすでに登録されています。';
-          case 422:
-            _message = '入力内容を確認してください。';
-          case 429:
-            _message = 'アクセスが集中しています。時間をおいて再度お試しください。';
-          default:
-            _message = '登録に失敗しました。もう一度お試しください。';
-        }
-      });
-    } catch (_) {
-      if (!mounted) return;
-
-      setState(() {
-        _message = '通信エラーが発生しました。接続状況をご確認ください。';
+        _message = errorMessage(error);
       });
     } finally {
       if (mounted) {

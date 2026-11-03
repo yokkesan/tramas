@@ -1,34 +1,51 @@
-import 'dart:convert';
-import 'dart:io';
+import '../../../config/app_config.dart';
+import '../../../core/network/api_client.dart';
+import 'package:flutter/foundation.dart';
 
 class RegisterService {
+  RegisterService({this.api});
+  final ApiClient? api;
+  Future<void> registerDetailed({
+    required String email,
+    required String password,
+  }) async {
+    final response = await api!.send(
+      'POST',
+      '/api/v1/auth/register',
+      body: {'email': email, 'password': password},
+    );
+    if (response.status != 201) {
+      throw const ApiException('invalid_response');
+    }
+  }
+
   Future<int> register({
     required String apiBaseUrl,
     required String email,
     required String password,
   }) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
-
+    final client =
+        api ??
+        ApiClient(
+          AppConfig.fromValues(
+            environment: const String.fromEnvironment(
+              'APP_ENV',
+              defaultValue: 'development',
+            ),
+            baseUrl: apiBaseUrl,
+            release: kReleaseMode,
+          ),
+        );
     try {
-      final uri = Uri.parse('$apiBaseUrl/api/v1/auth/register');
-
-      final request = await client
-          .postUrl(uri)
-          .timeout(const Duration(seconds: 5));
-
-      request.headers.contentType = ContentType.json;
-
-      request.write(jsonEncode({'email': email, 'password': password}));
-
-      final response = await request.close().timeout(
-        const Duration(seconds: 5),
+      final response = await client.send(
+        'POST',
+        '/api/v1/auth/register',
+        body: {'email': email, 'password': password},
       );
-
-      await response.drain<void>();
-
-      return response.statusCode;
-    } finally {
-      client.close(force: true);
+      return response.status;
+    } on ApiException catch (e) {
+      if (e.status != 0) return e.status;
+      rethrow;
     }
   }
 }
