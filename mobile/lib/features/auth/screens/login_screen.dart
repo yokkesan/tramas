@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../app/app_scope.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/widgets/feature_widgets.dart';
+import 'verification_screen.dart';
+import 'password_reset_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,6 +20,32 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _busy = false;
+  Object? _error;
+
+  Future<void> _login([String? provider]) async {
+    if (_busy) return;
+    final scope = AppScope.of(context);
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      if (provider == null) {
+        await scope.session.login(
+          _emailController.text.trim(),
+          _passwordController.text,
+        );
+      } else {
+        await scope.oidc.login(provider);
+      }
+      if (mounted) _passwordController.clear();
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -123,12 +154,14 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 9),
 
               ElevatedButton(
-                onPressed: null,
+                onPressed: _busy ? null : _login,
                 style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textPrimary,
                   disabledBackgroundColor: AppColors.primary,
                   disabledForegroundColor: AppColors.textPrimary,
                 ),
-                child: const Text('ログイン'),
+                child: Text(_busy ? 'ログイン中...' : 'ログイン'),
               ),
 
               const SizedBox(height: 12),
@@ -138,15 +171,25 @@ class _LoginScreenState extends State<LoginScreen> {
                 runSpacing: 8,
                 children: [
                   ElevatedButton(
-                    onPressed: null,
+                    onPressed:
+                        _busy ||
+                            !AppScope.of(context).oidc.sdk.available('apple')
+                        ? null
+                        : () => _login('apple'),
                     style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.header,
+                      foregroundColor: AppColors.white,
                       disabledBackgroundColor: AppColors.header,
                       disabledForegroundColor: AppColors.white,
                     ),
                     child: const Text('Appleでログイン'),
                   ),
                   ElevatedButton(
-                    onPressed: null,
+                    onPressed:
+                        _busy ||
+                            !AppScope.of(context).oidc.sdk.available('google')
+                        ? null
+                        : () => _login('google'),
                     child: const Text('Googleでログイン'),
                   ),
                 ],
@@ -154,16 +197,65 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 12),
 
+              if (!AppScope.of(context).oidc.sdk.available('apple') ||
+                  !AppScope.of(context).oidc.sdk.available('google'))
+                Text(
+                  '${!AppScope.of(context).oidc.sdk.available('apple') ? 'Apple認証は設定待ち。' : ''}${!AppScope.of(context).oidc.sdk.available('google') ? 'Google認証は設定待ち。' : ''}',
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ErrorText(_error),
+              if (_error == null)
+                ErrorText(AppScope.of(context).session.problem),
+              if (_error is ApiException &&
+                  (_error as ApiException).code ==
+                      'email_verification_required')
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => VerificationScreen(
+                              email: _emailController.text.trim(),
+                            ),
+                          ),
+                        ),
+                  child: const Text('メール本人確認へ'),
+                ),
+
               OutlinedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) =>
-                          RegisterScreen(apiBaseUrl: widget.apiBaseUrl),
-                    ),
-                  );
-                },
+                onPressed: _busy
+                    ? null
+                    : () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (context) =>
+                                RegisterScreen(apiBaseUrl: widget.apiBaseUrl),
+                          ),
+                        );
+                      },
                 child: const Text('新規登録へ'),
+              ),
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => VerificationScreen(
+                            email: _emailController.text.trim(),
+                          ),
+                        ),
+                      ),
+                child: const Text('メール本人確認・再送'),
+              ),
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const PasswordResetScreen(),
+                        ),
+                      ),
+                child: const Text('パスワードをお忘れの方'),
               ),
             ],
           ),
